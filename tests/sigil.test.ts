@@ -1,11 +1,23 @@
 // ============================================================================
-// Sigil MCP Server Tests
+// Sigil v1.0 MCP Server Tests
 // ============================================================================
 
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { compile, check, lint, tokenizeAndParse } from '../src/utils/compiler.js';
 import { getTemplate, listTemplates, TEMPLATES } from '../src/templates/index.js';
+import {
+  PROGRAM_IDS,
+  SYSVARS,
+  CONSTANTS,
+  COMMON_ERRORS,
+  SECURITY_RULES,
+  TYPE_SIZES,
+  calculateRent,
+  lookupProgram,
+  lookupError,
+  formatConstants,
+} from '../src/knowledge/solana.js';
 
 // ---------------------------------------------------------------------------
 // Compiler Bridge
@@ -72,21 +84,19 @@ program Hello {
 // Templates
 // ---------------------------------------------------------------------------
 describe('templates', () => {
-  it('has 6 templates', () => {
-    assert.strictEqual(Object.keys(TEMPLATES).length, 6);
+  it('has 11 templates', () => {
+    assert.strictEqual(Object.keys(TEMPLATES).length, 11);
   });
 
-  it('listTemplates() returns formatted list', () => {
+  it('listTemplates() returns formatted list with all templates', () => {
     const list = listTemplates();
-    assert.ok(list.includes('token'));
-    assert.ok(list.includes('escrow'));
-    assert.ok(list.includes('staking'));
-    assert.ok(list.includes('dao'));
-    assert.ok(list.includes('nft'));
-    assert.ok(list.includes('game'));
+    const expected = ['token', 'escrow', 'staking', 'dao', 'nft', 'game', 'amm', 'multisig', 'auction', 'lending', 'vesting'];
+    for (const name of expected) {
+      assert.ok(list.includes(name), `should include ${name}`);
+    }
   });
 
-  it('getTemplate() resolves aliases', () => {
+  it('getTemplate() resolves original aliases', () => {
     const t1 = getTemplate('spl');
     assert.ok(t1);
     assert.strictEqual(t1.name, 'SPL Token');
@@ -98,6 +108,23 @@ describe('templates', () => {
     const t3 = getTemplate('mint');
     assert.ok(t3);
     assert.strictEqual(t3.name, 'NFT Collection');
+  });
+
+  it('getTemplate() resolves new aliases', () => {
+    assert.ok(getTemplate('dex'));
+    assert.strictEqual(getTemplate('dex')!.name, 'AMM DEX');
+
+    assert.ok(getTemplate('safe'));
+    assert.strictEqual(getTemplate('safe')!.name, 'Multisig Wallet');
+
+    assert.ok(getTemplate('bid'));
+    assert.strictEqual(getTemplate('bid')!.name, 'Auction House');
+
+    assert.ok(getTemplate('borrow'));
+    assert.strictEqual(getTemplate('borrow')!.name, 'Lending Protocol');
+
+    assert.ok(getTemplate('cliff'));
+    assert.strictEqual(getTemplate('cliff')!.name, 'Token Vesting');
   });
 
   it('getTemplate() returns null for unknown template', () => {
@@ -112,12 +139,10 @@ describe('templates', () => {
   });
 
   for (const [key, template] of Object.entries(TEMPLATES)) {
-    it(`template "${key}" compiles without errors`, () => {
+    it(`template "${key}" compiles or parses without errors`, () => {
       const source = template.source.replace(/\{name\}/g, template.name.replace(/\s+/g, ''));
       const result = compile(source, { resolveImports: false });
-      // Templates with stdlib imports may not fully compile but should parse
       if (!result.success) {
-        // At minimum, should tokenize and parse
         const { ast } = tokenizeAndParse(source);
         assert.ok(ast.body.length > 0, `template "${key}" should produce AST`);
       }
@@ -126,7 +151,7 @@ describe('templates', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Explain tool logic (AST inspection)
+// AST Inspection
 // ---------------------------------------------------------------------------
 describe('AST inspection', () => {
   it('parses program with accounts, instructions, events', () => {
@@ -151,5 +176,148 @@ program Test {
 
     const events = prog.body.filter((n: any) => n.kind === 'EventDeclaration');
     assert.strictEqual(events.length, 1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Solana Knowledge Base
+// ---------------------------------------------------------------------------
+describe('solana knowledge base', () => {
+  it('has 22 program IDs', () => {
+    assert.strictEqual(Object.keys(PROGRAM_IDS).length, 22);
+  });
+
+  it('has 7 sysvars', () => {
+    assert.strictEqual(Object.keys(SYSVARS).length, 7);
+  });
+
+  it('has 12 common errors', () => {
+    assert.strictEqual(Object.keys(COMMON_ERRORS).length, 12);
+  });
+
+  it('has 10 security rules', () => {
+    assert.strictEqual(SECURITY_RULES.length, 10);
+  });
+
+  it('security rules have correct severity levels', () => {
+    const criticals = SECURITY_RULES.filter((r) => r.severity === 'critical');
+    const highs = SECURITY_RULES.filter((r) => r.severity === 'high');
+    const mediums = SECURITY_RULES.filter((r) => r.severity === 'medium');
+    assert.ok(criticals.length >= 3, 'should have at least 3 critical rules');
+    assert.ok(highs.length >= 3, 'should have at least 3 high rules');
+    assert.ok(mediums.length >= 2, 'should have at least 2 medium rules');
+  });
+
+  it('has type sizes for all basic types', () => {
+    const expected = ['u8', 'u16', 'u32', 'u64', 'u128', 'i8', 'i16', 'i32', 'i64', 'i128', 'f32', 'f64', 'bool', 'pubkey', 'string', 'bytes'];
+    for (const type of expected) {
+      assert.ok(TYPE_SIZES[type] !== undefined, `should have size for ${type}`);
+      assert.ok(TYPE_SIZES[type] > 0, `size for ${type} should be positive`);
+    }
+  });
+
+  it('constants have expected categories', () => {
+    assert.ok(CONSTANTS.accounts);
+    assert.ok(CONSTANTS.transactions);
+    assert.ok(CONSTANTS.compute);
+    assert.ok(CONSTANTS.pda);
+    assert.ok(CONSTANTS.cpi);
+    assert.ok(CONSTANTS.rent);
+  });
+
+  it('program IDs have valid base58 addresses', () => {
+    for (const [name, info] of Object.entries(PROGRAM_IDS)) {
+      assert.ok(info.address.length >= 32, `${name} address should be at least 32 chars`);
+      assert.ok(info.description.length > 0, `${name} should have a description`);
+      assert.ok(info.docs.startsWith('http'), `${name} should have a valid docs URL`);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rent Calculator
+// ---------------------------------------------------------------------------
+describe('rent calculator', () => {
+  it('calculates rent for zero-size account', () => {
+    const result = calculateRent(0);
+    assert.strictEqual(result.totalSize, 128); // header only
+    assert.ok(result.lamports > 0);
+    assert.ok(result.sol > 0);
+  });
+
+  it('calculates rent for small account (8 bytes)', () => {
+    const result = calculateRent(8);
+    assert.strictEqual(result.totalSize, 136);
+    const expected = Math.ceil(136 * 3480 * 2);
+    assert.strictEqual(result.lamports, expected);
+  });
+
+  it('calculates rent for typical account (165 bytes, token account size)', () => {
+    const result = calculateRent(165);
+    assert.strictEqual(result.totalSize, 293);
+    assert.ok(result.lamports > 0);
+    assert.ok(result.sol < 1, 'rent should be less than 1 SOL');
+  });
+
+  it('sol equals lamports / 1e9', () => {
+    const result = calculateRent(100);
+    assert.strictEqual(result.sol, result.lamports / 1_000_000_000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Lookup Functions
+// ---------------------------------------------------------------------------
+describe('lookup functions', () => {
+  it('lookupProgram finds System Program', () => {
+    const result = lookupProgram('system');
+    assert.ok(result);
+    assert.ok(result.includes('11111111111111111111111111111111'));
+  });
+
+  it('lookupProgram finds Token Program', () => {
+    const result = lookupProgram('token');
+    assert.ok(result);
+    assert.ok(result.includes('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'));
+  });
+
+  it('lookupProgram finds by address', () => {
+    const result = lookupProgram('JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4');
+    assert.ok(result);
+    assert.ok(result.includes('Jupiter'));
+  });
+
+  it('lookupProgram finds sysvars', () => {
+    const result = lookupProgram('clock');
+    assert.ok(result);
+    assert.ok(result.includes('Sysvar'));
+  });
+
+  it('lookupProgram returns null for unknown', () => {
+    assert.strictEqual(lookupProgram('xyznonexistent123'), null);
+  });
+
+  it('lookupError finds InsufficientFunds', () => {
+    const result = lookupError('insufficient');
+    assert.ok(result);
+    assert.ok(result.includes('lamports'));
+  });
+
+  it('lookupError finds by meaning', () => {
+    const result = lookupError('compute units');
+    assert.ok(result);
+    assert.ok(result.includes('ProgramFailedToComplete'));
+  });
+
+  it('lookupError returns null for unknown', () => {
+    assert.strictEqual(lookupError('xyznonexistent123'), null);
+  });
+
+  it('formatConstants returns markdown with tables', () => {
+    const result = formatConstants();
+    assert.ok(result.includes('Accounts'));
+    assert.ok(result.includes('Transactions'));
+    assert.ok(result.includes('Compute'));
+    assert.ok(result.includes('|'));
   });
 });

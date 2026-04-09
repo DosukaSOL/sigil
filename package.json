@@ -1,6 +1,6 @@
 {
   "name": "sigil-mcp",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Sigil — MCP server that gives AI agents the power to build, compile, lint, and deploy Solana programs using Purp SCL.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
