@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A78BFA"/>
+      <stop offset="50%" stop-color="#818CF8"/>
+      <stop offset="100%" stop-color="#6366F1"/>
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+    <filter id="inner-glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="url(#bg)" filter="url(#shadow)"/>
+
+  <!-- Outer ring -->
+  <circle cx="256" cy="256" r="220" fill="none" stroke="#A78BFA" stroke-width="2" opacity="0.4"/>
+
+  <!-- Sigil symbol: stylized S made of circuit-like paths -->
+  <g transform="translate(256,256)" filter="url(#inner-glow)">
+    <!-- Main S shape with angular/circuit aesthetic -->
+    <path d="M 60,-100 L -20,-100 Q -80,-100 -80,-60 L -80,-20 Q -80,10 -50,10 L 50,10 Q 80,10 80,50 L 80,80 Q 80,100 20,100 L -60,100"
+          fill="none" stroke="url(#glow)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Circuit nodes (dots at key points) -->
+    <circle cx="60" cy="-100" r="8" fill="#C4B5FD"/>
+    <circle cx="-60" cy="100" r="8" fill="#C4B5FD"/>
+
+    <!-- Horizontal accent lines -->
+    <line x1="-80" y1="-60" x2="-110" y2="-60" stroke="#A78BFA" stroke-width="4" stroke-linecap="round" opacity="0.6"/>
+    <line x1="80" y1="60" x2="110" y2="60" stroke="#A78BFA" stroke-width="4" stroke-linecap="round" opacity="0.6"/>
+
+    <!-- Small circuit dots on accent lines -->
+    <circle cx="-110" cy="-60" r="4" fill="#A78BFA" opacity="0.6"/>
+    <circle cx="110" cy="60" r="4" fill="#A78BFA" opacity="0.6"/>
+
+    <!-- Chevron/arrow accents suggesting code/flow -->
+    <path d="M -30,-140 L -10,-130 L -30,-120" fill="none" stroke="#C4B5FD" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+    <path d="M 30,140 L 10,130 L 30,120" fill="none" stroke="#C4B5FD" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+  </g>
+
+  <!-- Bottom text: SIGIL -->
+  <text x="256" y="440" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="36" font-weight="700" letter-spacing="12" fill="#E0E7FF" opacity="0.9">SIGIL</text>
+</svg>

@@ -1,0 +1,50 @@
+{
+  "name": "sigil-mcp",
+  "version": "0.1.0",
+  "description": "Sigil — MCP server that gives AI agents the power to build, compile, lint, and deploy Solana programs using Purp SCL.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "bin": {
+    "sigil": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "start": "node dist/index.js",
+    "test": "npx tsx --test tests/**/*.test.ts",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "mcp",
+    "solana",
+    "ai-agents",
+    "purp",
+    "compiler",
+    "model-context-protocol",
+    "blockchain",
+    "developer-tools"
+  ],
+  "author": "Lorenzo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DosukaSOL/sigil"
+  },
+  "homepage": "https://github.com/DosukaSOL/sigil",
+  "bugs": {
+    "url": "https://github.com/DosukaSOL/sigil/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "purp-scl": "file:../Purp (SCL)"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.3"
+  }
+}
