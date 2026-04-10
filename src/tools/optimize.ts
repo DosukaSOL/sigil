@@ -33,7 +33,7 @@ export function registerOptimizeTool(server: McpServer): void {
             let size = 8; // discriminator
             let stringCount = 0;
             for (const f of fields) {
-              const typeName = f.typeAnnotation?.name ?? 'unknown';
+              const typeName = f.type?.name ?? f.typeAnnotation?.name ?? 'unknown';
               const fieldSize = TYPE_SIZES[typeName] ?? 36;
               size += fieldSize;
               if (typeName === 'string') stringCount++;
@@ -54,17 +54,19 @@ export function registerOptimizeTool(server: McpServer): void {
 
           // Check 2: Instruction complexity
           for (const ix of instructions) {
-            const params = (ix as any).params ?? [];
-            const mutAccounts = params.filter(
-              (p: any) => p.attributes?.some((a: any) => a.name === 'mut'),
+            const ixAccounts = (ix as any).accounts ?? [];
+            const ixParams = (ix as any).params ?? [];
+            const allParams = [...ixAccounts, ...ixParams];
+            const mutAccounts = ixAccounts.filter(
+              (p: any) => p.accountType?.mutable === true || p.constraints?.some((c: any) => c.kind === 'mut'),
             );
-            const initAccounts = params.filter(
-              (p: any) => p.attributes?.some((a: any) => a.name === 'init'),
+            const initAccounts = ixAccounts.filter(
+              (p: any) => p.constraints?.some((c: any) => c.kind === 'init'),
             );
 
-            if (params.length > 8) {
+            if (allParams.length > 8) {
               suggestions.push(
-                `**Instruction \`${(ix as any).name}\`** has ${params.length} parameters — may exceed transaction size limit (${CONSTANTS.transactions.PACKET_DATA_SIZE.value} bytes). Consider splitting into multiple instructions.`,
+                `**Instruction \`${(ix as any).name}\`** has ${allParams.length} parameters — may exceed transaction size limit (${CONSTANTS.transactions.PACKET_DATA_SIZE.value} bytes). Consider splitting into multiple instructions.`,
               );
               score -= 15;
             }

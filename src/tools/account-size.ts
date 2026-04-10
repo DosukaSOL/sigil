@@ -86,7 +86,8 @@ function getAccounts(node: any): any[] {
 }
 
 function getTypeName(field: any): string {
-  const ta = field.typeAnnotation;
+  // AST stores type info in field.type (not field.typeAnnotation)
+  const ta = field.type ?? field.typeAnnotation;
   if (!ta) return 'unknown';
   if (ta.name) return ta.name;
   if (ta.kind === 'TypeReference') return ta.name ?? 'unknown';

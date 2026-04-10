@@ -35,13 +35,13 @@ export function registerAuditTool(server: McpServer): void {
 
           for (const ix of instructions) {
             const ixName = (ix as any).name;
-            const params = (ix as any).params ?? [];
+            const ixAccounts = (ix as any).accounts ?? [];
             const ixSource = getInstructionSource(source, ix);
 
             // Check: signer-authorization
-            const hasSigner = params.some((p: any) => p.accountType === 'signer');
-            const hasMut = params.some(
-              (p: any) => p.attributes?.some((a: any) => a.name === 'mut'),
+            const hasSigner = ixAccounts.some((p: any) => p.accountType?.kind === 'Signer');
+            const hasMut = ixAccounts.some(
+              (p: any) => p.accountType?.mutable === true || p.constraints?.some((c: any) => c.kind === 'mut'),
             );
             if (hasMut && !hasSigner) {
               const rule = SECURITY_RULES.find((r) => r.rule === 'signer-authorization')!;
@@ -75,8 +75,8 @@ export function registerAuditTool(server: McpServer): void {
             }
 
             // Check: account-reinitialization
-            const hasInit = params.some(
-              (p: any) => p.attributes?.some((a: any) => a.name === 'init'),
+            const hasInit = ixAccounts.some(
+              (p: any) => p.constraints?.some((c: any) => c.kind === 'init'),
             );
             if (hasInit) {
               const hasInitCheck =
@@ -118,10 +118,10 @@ export function registerAuditTool(server: McpServer): void {
             }
 
             // Check: duplicate-mutable-accounts
-            const mutAccounts = params.filter(
+            const mutAccounts = ixAccounts.filter(
               (p: any) =>
-                p.attributes?.some((a: any) => a.name === 'mut') &&
-                p.accountType === 'account',
+                (p.accountType?.mutable === true || p.constraints?.some((c: any) => c.kind === 'mut')) &&
+                p.accountType?.kind === 'Account',
             );
             if (mutAccounts.length >= 2) {
               const hasDuplicateCheck = ixSource.includes('!=');

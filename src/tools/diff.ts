@@ -93,7 +93,7 @@ function extractItems(body: any[], kind: string): NamedItem[] {
     .map((n: any) => ({
       name: n.name ?? '(anonymous)',
       fields: (n.fields ?? n.params ?? n.variants ?? []).map(
-        (f: any) => `${f.name}: ${f.typeAnnotation?.name ?? f.accountType ?? f.value ?? '?'}`,
+        (f: any) => `${f.name}: ${f.type?.name ?? f.typeAnnotation?.name ?? f.accountType ?? f.value ?? '?'}`,
       ),
     }));
 }
