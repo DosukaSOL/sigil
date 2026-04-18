@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 // ============================================================================
 // Sigil v1.0 — MCP Server for AI-Powered Solana Development
 // Main entry point: registers tools, resources, prompts, and starts transport

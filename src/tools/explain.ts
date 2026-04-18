@@ -18,61 +18,63 @@ export function registerExplainTool(server: McpServer): void {
         const { ast } = tokenizeAndParse(source);
         const sections: string[] = [];
 
-        for (const node of ast.body) {
-          if ((node as any).kind === 'ProgramDeclaration') {
-            sections.push(`# Program: \`${(node as any).name}\`\n`);
+        for (const node of ast.body as any[]) {
+          if (node.kind !== 'ProgramDeclaration') continue;
+          sections.push(`# Program: \`${node.name}\`\n`);
 
-            const accounts = (node as any).body.filter((n: any) => n.kind === 'AccountDeclaration');
-            const instructions = (node as any).body.filter((n: any) => n.kind === 'InstructionDeclaration');
-            const events = (node as any).body.filter((n: any) => n.kind === 'EventDeclaration');
-            const errors = (node as any).body.filter((n: any) => n.kind === 'ErrorDeclaration');
+          const body = node.body ?? [];
+          const accounts = body.filter((n: any) => n.kind === 'AccountDeclaration');
+          const instructions = body.filter((n: any) => n.kind === 'InstructionDeclaration');
+          const events = body.filter((n: any) => n.kind === 'EventDeclaration');
+          const errors = body.filter((n: any) => n.kind === 'ErrorDeclaration');
 
-            if (accounts.length > 0) {
-              sections.push(`## Accounts (${accounts.length})\n`);
-              for (const acc of accounts) {
-                const fields = (acc as any).fields
-                  ?.map((f: any) => `  - \`${f.name}\`: ${f.typeAnnotation?.name ?? f.typeAnnotation?.type ?? 'unknown'}`)
-                  .join('\n');
-                sections.push(`**${(acc as any).name}**\n${fields ?? '  (no fields)'}`);
-              }
+          if (accounts.length > 0) {
+            sections.push(`## Accounts (${accounts.length})\n`);
+            for (const acc of accounts) {
+              const fields = (acc.fields ?? [])
+                .map((f: any) => `  - \`${f.name}\`: ${typeName(f)}`)
+                .join('\n');
+              sections.push(`**${acc.name}**\n${fields || '  (no fields)'}`);
             }
+          }
 
-            if (instructions.length > 0) {
-              sections.push(`\n## Instructions (${instructions.length})\n`);
-              for (const ix of instructions) {
-                const params = (ix as any).params
-                  ?.map((p: any) => {
-                    const attrs = p.attributes?.map((a: any) => `#[${a.name}]`).join(' ') ?? '';
-                    const kind = p.accountType ?? '';
-                    return `${attrs} ${kind} ${p.name}`.trim();
-                  })
-                  .join(', ');
-                const vis = (ix as any).isPublic ? 'pub ' : '';
-                sections.push(
-                  `**${vis}${(ix as any).name}**(${params ?? ''})\n` +
-                    describeInstructionBody((ix as any).body),
-                );
-              }
+          if (instructions.length > 0) {
+            sections.push(`\n## Instructions (${instructions.length})\n`);
+            for (const ix of instructions) {
+              const accountSig = (ix.accounts ?? [])
+                .map((p: any) => formatAccountParam(p))
+                .join(', ');
+              const dataSig = (ix.params ?? [])
+                .map((p: any) => `${p.name}: ${typeName(p)}`)
+                .join(', ');
+              const sig = [accountSig, dataSig].filter(Boolean).join(', ');
+              const vis = ix.visibility === 'pub' ? 'pub ' : '';
+              sections.push(
+                `**${vis}${ix.name}**(${sig})\n${describeInstructionBody(ix.body)}`,
+              );
             }
+          }
 
-            if (events.length > 0) {
-              sections.push(`\n## Events (${events.length})\n`);
-              for (const ev of events) {
-                const fields = (ev as any).fields
-                  ?.map((f: any) => `\`${f.name}\``)
-                  .join(', ');
-                sections.push(`- **${(ev as any).name}**: ${fields ?? '(no fields)'}`);
-              }
+          if (events.length > 0) {
+            sections.push(`\n## Events (${events.length})\n`);
+            for (const ev of events) {
+              const fields = (ev.fields ?? [])
+                .map((f: any) => `\`${f.name}: ${typeName(f)}\``)
+                .join(', ');
+              sections.push(`- **${ev.name}**: ${fields || '(no fields)'}`);
             }
+          }
 
-            if (errors.length > 0) {
-              sections.push(`\n## Errors (${errors.length})\n`);
-              for (const err of errors) {
-                const variants = (err as any).variants
-                  ?.map((v: any) => `- \`${v.name}\` = "${v.message}"`)
-                  .join('\n');
-                sections.push(`**${(err as any).name}**\n${variants ?? '  (no variants)'}`);
-              }
+          if (errors.length > 0) {
+            sections.push(`\n## Errors (${errors.length})\n`);
+            for (const err of errors) {
+              const variants = (err.variants ?? [])
+                .map((v: any) => {
+                  const code = v.code !== undefined ? ` (code ${v.code})` : '';
+                  return `- \`${v.name}\`${code}: "${v.message ?? v.value ?? ''}"`;
+                })
+                .join('\n');
+              sections.push(`**${err.name}**\n${variants || '  (no variants)'}`);
             }
           }
         }
@@ -102,28 +104,65 @@ export function registerExplainTool(server: McpServer): void {
   );
 }
 
-function describeInstructionBody(body: any[]): string {
-  if (!body || body.length === 0) return '  Empty body.';
+// ----- helpers -----
 
-  const descriptions: string[] = [];
+function typeName(node: any): string {
+  // Field/Param shape: { type: { kind: 'PrimitiveType'|'TypeReference', name: string } }
+  // Fallback: legacy `typeAnnotation.name`.
+  const t = node?.type ?? node?.typeAnnotation;
+  if (!t) return 'unknown';
+  if (typeof t === 'string') return t;
+  return t.name ?? t.kind ?? 'unknown';
+}
 
+function formatAccountParam(p: any): string {
+  const constraints: string[] = (p.constraints ?? []).map(
+    (c: any) => `#[${c.kind}]`,
+  );
+  const kind = p.accountType?.kind === 'Signer' ? 'signer' : 'account';
+  const attrs = constraints.length > 0 ? constraints.join(' ') + ' ' : '';
+  return `${attrs}${kind} ${p.name}`;
+}
+
+function describeInstructionBody(body: any[] | undefined): string {
+  if (!body || body.length === 0) return '  (empty body)';
+
+  const lines: string[] = [];
   for (const stmt of body) {
-    if (stmt.type === 'AssignmentStatement' || stmt.type === 'AssignmentExpression') {
-      descriptions.push('  - Sets account data');
-    } else if (stmt.type === 'EmitStatement') {
-      descriptions.push(`  - Emits event \`${stmt.event ?? stmt.name ?? 'unknown'}\``);
-    } else if (stmt.type === 'AssertStatement') {
-      descriptions.push('  - Validates a condition (assert)');
-    } else if (stmt.type === 'IfStatement') {
-      descriptions.push('  - Conditional logic');
-    } else if (stmt.type === 'ForStatement' || stmt.type === 'WhileStatement') {
-      descriptions.push('  - Loop');
-    } else if (stmt.type === 'ReturnStatement') {
-      descriptions.push('  - Returns a value');
-    } else if (stmt.type === 'VariableDeclaration') {
-      descriptions.push('  - Declares a local variable');
+    switch (stmt.kind) {
+      case 'AssignmentStatement':
+      case 'AssignmentExpression':
+        lines.push('  - Updates account state');
+        break;
+      case 'EmitStatement': {
+        const name = stmt.event?.name ?? stmt.event ?? stmt.name ?? 'unknown';
+        lines.push(`  - Emits event \`${name}\``);
+        break;
+      }
+      case 'AssertStatement':
+        lines.push('  - Validates a condition (assert)');
+        break;
+      case 'IfStatement':
+        lines.push('  - Branches on a condition');
+        break;
+      case 'ForStatement':
+      case 'WhileStatement':
+        lines.push('  - Loop');
+        break;
+      case 'ReturnStatement':
+        lines.push('  - Returns a value');
+        break;
+      case 'LetStatement':
+      case 'VariableDeclaration':
+        lines.push(`  - Declares local \`${stmt.name ?? '?'}\``);
+        break;
+      case 'CallExpression':
+      case 'CallStatement':
+        lines.push('  - Calls a function');
+        break;
+      default:
+        lines.push(`  - ${stmt.kind}`);
     }
   }
-
-  return descriptions.length > 0 ? descriptions.join('\n') : '  - Contains logic';
+  return lines.join('\n');
 }

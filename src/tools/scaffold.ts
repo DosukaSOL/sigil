@@ -10,12 +10,12 @@ import { compile } from '../utils/compiler.js';
 export function registerScaffoldTool(server: McpServer): void {
   server.tool(
     'purp_scaffold',
-    'Generate a complete Purp SCL program from a template. Available templates: token, escrow, staking, dao, nft, game. Returns compilable .purp source code.',
+    'Generate a complete Purp SCL program from one of 11 production-ready templates: token, escrow, staking, dao, nft, game, amm, multisig, auction, lending, vesting. Use "list" to see all options. Returns compilable .purp source code.',
     {
       template: z
         .string()
         .describe(
-          'Template name: token, escrow, staking, dao, nft, or game. Use "list" to see all.',
+          'Template name. Options: token, escrow, staking, dao, nft, game, amm, multisig, auction, lending, vesting. Use "list" to see all.',
         ),
       programName: z
         .string()
